@@ -5,37 +5,250 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Invitation au restaurant Le Train Bleu</title>
 <style>
-  body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; padding:20px; background:#f8f7f5; color:#111;}
-  .card{max-width:640px;margin:12px auto;background:white;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);overflow:hidden;}
-  .hero {
-    height:220px;
-    background-image:url('images/trainbleu.jpg');
-    background-size:cover;
-    background-position:center;
+  :root{
+    --bg:#f8f7f5;
+    --card-bg:#fff;
+    --accent:#0a63a6;
   }
+  html,body{height:100%;margin:0;padding:0;background:var(--bg);-webkit-font-smoothing:antialiased;}
+  body {font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial; color:#111; padding:20px; box-sizing:border-box;}
+  /* Fullscreen overlay for animation */
+  .overlay {
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,247,245,0.95));
+    z-index:9999; transition:opacity .5s ease, visibility .5s;
+  }
+  .overlay.hidden {opacity:0; visibility:hidden; pointer-events:none;}
+  /* Balloon */
+  .balloon {
+    width:180px; height:230px; position:relative; border-radius:50% 50% 50% 50%;
+    display:flex; align-items:center; justify-content:center;
+    transform-origin:center bottom;
+    animation:float 2200ms ease-in-out infinite;
+    box-shadow: 0 10px 30px rgba(10,50,80,0.15), inset -12px -8px 30px rgba(255,255,255,0.18);
+    background: radial-gradient(circle at 30% 25%, rgba(255,255,255,0.8), transparent 15%),
+                linear-gradient(180deg,#f8c6d1 0%, #d05a7b 100%);
+  }
+  .balloon::after{ /* knot */
+    content:""; position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); width:10px; height:14px; background:#d05a7b; border-radius:2px; box-shadow:0 4px 0 rgba(0,0,0,0.06);}
+  .string { position:absolute; bottom:-120px; left:50%; width:2px; height:100px; transform:translateX(-50%); background:linear-gradient(#d05a7b, transparent); opacity:0.9; }
+  @keyframes float {
+    0%{ transform: translateY(0) rotate(-2deg); }
+    50%{ transform: translateY(-10px) rotate(2deg); }
+    100%{ transform: translateY(0) rotate(-2deg); }
+  }
+  .pop {
+    animation:popBalloon .45s ease-out forwards;
+  }
+  @keyframes popBalloon{
+    0% { transform: scale(1) translateY(0); opacity:1; }
+    60% { transform: scale(1.25) translateY(-12px); opacity:.9; }
+    100% { transform: scale(.2) translateY(-40px) rotate(30deg); opacity:0; }
+  }
+
+  /* confetti canvas sits behind balloon but inside overlay */
+  canvas.confetti-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:9998; }
+
+  /* Card */
+  .card{max-width:640px;margin:12px auto;background:var(--card-bg);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.08);overflow:hidden;}
+  .hero {height:220px;background-image:url('images/trainbleu.jpg');background-size:cover;background-position:center;}
   .content{padding:18px;}
   h1{font-size:20px;margin:0 0 6px;}
   p{margin:6px 0 12px;line-height:1.35;}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .btn{flex:1;min-width:120px;text-align:center;padding:10px;border-radius:8px;text-decoration:none;font-weight:600;border:1px solid #e6e4e2;}
-  .primary{background:#0a63a6;color:white;border:none;}
+  .primary{background:var(--accent);color:white;border:none;}
   footer{font-size:13px;color:#666;padding:12px;text-align:center;}
+  /* hidden while overlay active */
+  .app-hidden {filter:blur(2px);pointer-events:none;user-select:none;opacity:.6;}
+  /* mobile tweaks */
+  @media (max-width:420px){
+    .balloon{ width:140px; height:180px; }
+    body{padding:14px;}
+  }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="hero" role="img" aria-label="Salle Le Train Bleu"></div>
-  <div class="content">
-    <h1>🎂 JOYEUX ANNIVERSAIRE MON COEUR ❤️</h1>
-    <h2 style="font-size:18px;margin:0 0 8px;">Invitation au restaurant <em>Le Train Bleu</em></h2>
-    <p>Pour ton anniversaire, je t’invite à partager un déjeuner/dîner dans ce lieu majestueux. 🥂</p>
-    <p><strong>Date :</strong> de ton choix</p>
-    <div class="btns">
-      <a class="btn primary" href="https://www.le-train-bleu.com/media/original/5aafbd3bc117c/carte-restaurant-ete.pdf" target="_blank" rel="noopener">Voir le menu</a>
+  <!-- Overlay: balloon + confetti -->
+  <div id="overlay" class="overlay" aria-hidden="false" role="dialog" aria-label="Animation anniversaire">
+    <canvas id="confetti" class="confetti-canvas"></canvas>
+    <div id="balloon" class="balloon" role="img" aria-label="Ballon d'anniversaire">
+      <div class="string" aria-hidden="true"></div>
     </div>
-    <p style="margin-top:12px;font-size:14px;color:#444">Adresse : Gare de Lyon, Pl. Louis Armand hall 1, 75012 Paris</p>
   </div>
-  <footer>🎁 BON ANNIVERSAIRE 🎁</footer>
-</div>
+
+  <!-- Main card (initially visible but will be disabled by overlay) -->
+  <div id="app" class="app">
+    <div class="card" id="card">
+      <div class="hero" role="img" aria-label="Salle Le Train Bleu"></div>
+      <div class="content">
+        <h1>🎂 JOYEUX ANNIVERSAIRE MON COEUR ❤️</h1>
+        <h2 style="font-size:18px;margin:0 0 8px;">Invitation au restaurant <em>Le Train Bleu</em></h2>
+        <p>Pour ton anniversaire, je t’invite à partager un déjeuner/dîner dans ce lieu majestueux. 🥂</p>
+        <p><strong>Date :</strong> de ton choix</p>
+        <div class="btns">
+          <a class="btn primary" href="https://www.le-train-bleu.com/fr/menu" target="_blank" rel="noopener">Voir le menu</a>
+        </div>
+        <p style="margin-top:12px;font-size:14px;color:#444">Adresse : Gare de Lyon, Pl. Louis Armand hall 1, 75012 Paris</p>
+      </div>
+      <footer>🎁 BON ANNIVERSAIRE 🎁</footer>
+    </div>
+  </div>
+
+<script>
+/*
+  Animation logic:
+  - AUTO_PLAY_DELAY_MS: après ouverture, on laisse un petit délai puis on fait "pop"
+  - POP_AFTER_MS: durée avant le pop
+  - CONFETTI_DURATION_MS: durée totale du confetti
+*/
+const AUTO_PLAY_DELAY_MS = 400;      // délai avant démarrage (ms)
+const POP_AFTER_MS = 1200;           // délai avant éclatement (ms)
+const CONFETTI_DURATION_MS = 2000;   // durée confettis (ms)
+
+const overlay = document.getElementById('overlay');
+const balloon = document.getElementById('balloon');
+const confettiCanvas = document.getElementById('confetti');
+const app = document.getElementById('app');
+
+// Simple confetti implementation using canvas
+function Confetti(canvas){
+  this.canvas = canvas;
+  this.ctx = canvas.getContext('2d');
+  this.width = canvas.width = window.innerWidth;
+  this.height = canvas.height = window.innerHeight;
+  this.particles = [];
+  this.running = false;
+
+  this.resize = () => {
+    this.width = canvas.width = window.innerWidth;
+    this.height = canvas.height = window.innerHeight;
+  };
+  window.addEventListener('resize', this.resize);
+
+  this.start = (count=60) => {
+    this.running = true;
+    this.particles = [];
+    for(let i=0;i<count;i++){
+      this.particles.push(this._createParticle());
+    }
+    this.last = performance.now();
+    this._frame();
+  };
+  this.stop = () => { this.running = false; };
+  this._createParticle = () => {
+    const colors = ['#f94144','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#577590','#277da1','#9b5de5','#ff7b00'];
+    return {
+      x: this.width/2 + (Math.random()-0.5)*160,
+      y: this.height/2 + (Math.random()-0.5)*60,
+      vx: (Math.random()-0.5)*6,
+      vy: - (Math.random()*7 + 2),
+      r: Math.random()*6 + 4,
+      rot: Math.random()*360,
+      vr: (Math.random()-0.5)*12,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      gravity: 0.18 + Math.random()*0.06,
+      drag: 0.995,
+      life: 0,
+      ttl: 3000 + Math.random()*1000
+    };
+  };
+  this._frame = () => {
+    if(!this.running) return;
+    const now = performance.now();
+    const dt = now - (this.last || now);
+    this.last = now;
+    const ctx = this.ctx;
+    ctx.clearRect(0,0,this.width,this.height);
+    for(let p of this.particles){
+      p.vy += p.gravity * (dt/16);
+      p.vx *= p.drag;
+      p.x += p.vx * (dt/16);
+      p.y += p.vy * (dt/16);
+      p.rot += p.vr * (dt/16);
+      p.life += dt;
+      // draw as rectangle rotated
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.6);
+      ctx.restore();
+    }
+    // remove offscreen or old particles
+    this.particles = this.particles.filter(p => p.y < this.height + 50 && p.life < p.ttl);
+    if(this.particles.length === 0){
+      this.running = false;
+      ctx.clearRect(0,0,this.width,this.height);
+      return;
+    }
+    requestAnimationFrame(this._frame);
+  };
+}
+
+const confetti = new Confetti(confettiCanvas);
+
+// sequence: wait → pop balloon → start confetti → hide overlay → reveal card
+function playSequence(){
+  app.classList.add('app-hidden'); // visually de-emphasize while animation runs
+  setTimeout(() => {
+    // pop animation
+    balloon.classList.add('pop');
+    // start confetti slightly after pop begins
+    setTimeout(() => {
+      confetti.start(80);
+      // stop confetti after duration
+      setTimeout(() => {
+        confetti.stop();
+        // hide overlay
+        overlay.classList.add('hidden');
+        app.classList.remove('app-hidden');
+      }, CONFETTI_DURATION_MS);
+    }, 120); // slight delay for better sync
+  }, POP_AFTER_MS);
+}
+
+// Allow user to tap balloon to pop earlier
+balloon.addEventListener('click', () => {
+  // if already popped, ignore
+  if(balloon.classList.contains('pop')) return;
+  // accelerate sequence
+  balloon.classList.add('pop');
+  setTimeout(()=> {
+    confetti.start(80);
+    setTimeout(()=> {
+      confetti.stop();
+      overlay.classList.add('hidden');
+      app.classList.remove('app-hidden');
+    }, CONFETTI_DURATION_MS);
+  }, 120);
+});
+
+// small accessibility: pressing space or enter triggers pop
+document.addEventListener('keydown', (e) => {
+  if(e.key === ' ' || e.key === 'Enter'){
+    e.preventDefault();
+    balloon.click();
+  }
+});
+
+// auto play after small delay
+setTimeout(playSequence, AUTO_PLAY_DELAY_MS);
+
+// Make sure canvas size is correct for mobile high DPI
+function adjustCanvasDPR(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  confettiCanvas.width = window.innerWidth * dpr;
+  confettiCanvas.height = window.innerHeight * dpr;
+  confettiCanvas.style.width = window.innerWidth + 'px';
+  confettiCanvas.style.height = window.innerHeight + 'px';
+  confetti.ctx && confetti.ctx.scale && confetti.ctx.scale(dpr, dpr);
+}
+window.addEventListener('load', adjustCanvasDPR);
+window.addEventListener('resize', () => {
+  adjustCanvasDPR();
+  confetti.resize();
+});
+</script>
 </body>
 </html>
